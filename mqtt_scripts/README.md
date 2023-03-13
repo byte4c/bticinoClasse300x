@@ -106,10 +106,7 @@ This file is in python and is used by the StartMqttSend script to filter network
 
     # Modify flexisipsh service to create a file in /tmp/ folder when flexisip restart
     cp /etc/init.d/flexisipsh /etc/init.d/flexisipsh_bak
-    awk 'NR == 25 {$0="\t/bin/touch /tmp/flexisip_restarted\n\t;;"} 1' /etc/init.d/flexisipsh > /etc/init.d/flexisipsh_new
-    mv /etc/init.d/flexisipsh_new /etc/init.d/flexisipsh
-    chmod 775 /etc/init.d/flexisipsh
-    chown bticino:bticino /etc/init.d/flexisipsh
+    sed -i '25i\\t/bin/touch /tmp/flexisip_restarted' /etc/init.d/flexisipsh
 
     # Make the filesystem read-only again.
     mount -oremount, ro /

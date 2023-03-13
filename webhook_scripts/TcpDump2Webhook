@@ -1,0 +1,86 @@
+#!/bin/sh
+function kill_childs() {
+	PID="$(ps -edf | grep sh | grep StartWebhookSend | awk '{print $2}')"
+	if [ -n "${PID}" ]; then
+		kill $PID > /dev/null
+		echo "Killed StartWebhookSend process with PID $PID"
+	fi
+
+	PID="$(ps -edf | grep tcpdump | grep 30007 | awk '{print $2}')"
+	if [ -n "${PID}" ]; then
+		kill $PID > /dev/null
+		echo "Killed tcpdump process with PID $PID"
+	fi
+
+	PID="$(ps -edf | grep awk | grep $WEBHOOK_HOST | awk '{print $2}')"
+	if [ -n "${PID}" ]; then
+		kill $PID > /dev/null
+		echo "Killed awk process with PID $PID"
+	fi
+}
+
+function exit_handler() {
+	echo -e "Goodbye cruel world! x____x\n"
+	kill_childs
+	exit $?
+}
+
+trap exit_handler SIGINT SIGTERM
+
+CFGFILE=/etc/tcpdump2webhook/TcpDump2Webhook.conf
+
+# Check config file
+if ! ([ -f $CFGFILE ] && [ -s $CFGFILE ]); then
+	echo 'Configuration file missing or empty!'
+	exit 1
+fi
+
+# Import configs
+set -a
+. $CFGFILE
+set +a
+
+# Check config params
+if ([ -z ${WEBHOOK_HOST} ]); then
+	echo 'Wrong configuration, please check config file!'
+	exit 1
+fi
+
+# Determine and show default gateway
+GWADDR="$(route -n | grep 'UG[ \t]' | awk '{print $2}')"
+echo -n "Default gateway $GWADDR | "
+
+# Kill any previous stale process
+echo "Checking for stale processes..."
+kill_childs
+echo ""
+
+# Main watchdog loop
+while :
+	do
+		PING=`ping -s 1 -c 4 ${GWADDR} > /dev/null; echo $?`
+		FILE=/tmp/flexisip_wh_restarted
+
+		if [ $PING -ne 0 ] || [ -f "$FILE" ]; then
+			# Network is down or flexisip restarted
+
+			if [ -f "$FILE" ]; then
+				/bin/rm "$FILE"
+				echo "Removed Flexisip restarted file"
+			fi
+
+			kill_childs
+		else
+			# Network is up
+
+			# If Webhook sender is not running, start it
+			if ! /usr/bin/pgrep -x tcpdump > /dev/null ; then
+				echo -n "Starting Webhook sender..."
+				/etc/tcpdump2webhook/StartWebhookSend &
+				echo " done!"
+			fi
+		fi
+
+		/bin/sleep 1m
+		echo "-.- . --"
+	done

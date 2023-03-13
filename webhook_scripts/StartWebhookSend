@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# search patterns v1
+# frontdoor:  *8*1#1#4#21*10##
+# insidedoor: *8*80#6#2*10##
+# /usr/sbin/tcpdump -i lo -U not udp and not icmp and not port 5007 and not port 5060 and not port 20000 and not dst port 30007 -A -q -l 2>&1 | awk -v host=$WEBHOOK_HOST '/\*8\*1#1#4#21\*10##|\*8\*80#6#2\*10##/ {system("curl -X GET --data " $1 " " host)}'
+
+# search patterns v2
+# all doors: *#7**31#2*10## -> regex last 2 digits (10) as it's the ringer volume
+/usr/sbin/tcpdump -i lo -U not udp and not icmp and not port 5007 and not port 5060 and not port 20000 and not dst port 30007 -A -q -l 2>&1 | awk -v host=$WEBHOOK_HOST '/\*#7\*\*31#2\*[0-9][0-9]##/ {system("curl -X GET --data " $1 " " host)}'

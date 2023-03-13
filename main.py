@@ -41,6 +41,7 @@ class PrepareFirmware():
         self.SSHcreation = None
         self.removeSig = None
         self.installMQTT = None
+        self.installWebhook = None
         self.notifyNewFirmware = None
         self.mntLoc = '/media/mounted'
 
@@ -106,6 +107,16 @@ class PrepareFirmware():
         else:
             print('Please use y or n', flush=True)
             exit(1)
+        # Ask for Webhook installation
+        self.installWebhook = input('Do you want to install Webhook [y] or keep it '
+                                 '[n]? (y/n): ')
+        if self.installWebhook == 'y' or self.installWebhook == 'Y':
+            print('The program will install Webhook.', flush=True)
+        elif self.installWebhook == 'n' or self.installWebhook == 'N':
+            print('The program will keep Webhook.', flush=True)
+        else:
+            print('Please use y or n', flush=True)
+            exit(1)
         # Ask for notification when new firmware is available
         self.notifyNewFirmware = input('Do you want to be notified when a new '
                                        'firmware is available [y] or not '
@@ -148,6 +159,9 @@ class PrepareFirmware():
         if self.installMQTT == 'y' or self.installMQTT == 'Y':
             self.prepareMQTT(cwd)
             self.enableMQTT()
+        if self.installWebhook == 'y' or self.installWebhook == 'Y':
+            self.prepareWebhook(cwd)
+            self.enableWebhook()
         if self.notifyNewFirmware == 'n' or self.notifyNewFirmware == 'N':
             self.disableNotifyNewFirmware()
         self.umountFirmware()
@@ -408,6 +422,51 @@ class PrepareFirmware():
         # create symbolic link
         subprocess.call(['sudo', 'ln', '-s', '../tcpdump2mqtt/TcpDump2Mqtt.sh',
                          'S99TcpDump2Mqtt'])
+        # return to temporary folder
+        os.chdir(self.workingdir)
+        print('done ✅')
+
+    def prepareWebhook(self, cwd):
+        """Prepare Webhook."""
+        print('Preparing Webhook... ', end='', flush=True)
+        # Create tcpdump2webhook directory
+        subprocess.run(['sudo', 'mkdir', '-p',
+                        f'{self.mntLoc}/etc/tcpdump2webhook'])
+        subprocess.run(['sudo', 'cp', f'{cwd}/webhook_scripts/TcpDump2Webhook',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/TcpDump2Webhook'])
+        subprocess.run(['sudo', 'chmod', '775',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/TcpDump2Webhook'])
+        subprocess.run(['sudo', 'cp', f'{cwd}/webhook_scripts/TcpDump2Webhook.conf',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/TcpDump2Webhook.conf'])
+        subprocess.run(['sudo', 'cp', f'{cwd}/webhook_scripts/TcpDump2Webhook.sh',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/TcpDump2Webhook.sh'])
+        subprocess.run(['sudo', 'chmod', '775',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/TcpDump2Webhook.sh'])
+        subprocess.run(['sudo', 'cp', f'{cwd}/webhook_scripts/StartWebhookSend',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/StartWebhookSend'])
+        subprocess.run(['sudo', 'chmod', '775',
+                        f'{self.mntLoc}/etc/tcpdump2webhook/StartWebhookSend'])
+        subprocess.run(['sudo', 'cp', f'{self.mntLoc}/etc/init.d/flexisipsh',
+                        f'{self.mntLoc}/etc/init.d/flexisipsh_bak'])
+
+        with open(f'{self.mntLoc}/etc/init.d/flexisipsh', 'r') as f:
+            contents = f.readlines()
+
+        contents.insert(24, '\t/bin/touch /tmp/flexisip_wh_restarted\n')
+
+        with open(f'{self.mntLoc}/etc/init.d/flexisipsh', 'w') as f:
+            contents = ''.join(contents)
+            f.write(contents)
+
+        print('done ✅')
+
+    def enableWebhook(self):
+        """Enable Webhook."""
+        print('Enabling Webhook... ', end='', flush=True)
+        os.chdir(f'{self.mntLoc}/etc/rc5.d')
+        # create symbolic link
+        subprocess.call(['sudo', 'ln', '-s', '../tcpdump2webhook/TcpDump2Webhook.sh',
+                         'S99TcpDump2Webhook'])
         # return to temporary folder
         os.chdir(self.workingdir)
         print('done ✅')
